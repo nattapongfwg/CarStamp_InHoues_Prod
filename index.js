@@ -6,6 +6,7 @@ const {
   updateRowResult,
   getMasterData,
   checkOwnerMatch,
+  isVehicleRegMatch,
 } = require("./get_sheet");
 
 function clean(value) {
@@ -76,7 +77,7 @@ function logData(obj) {
 
 async function loginWebsite() {
   const browser = await chromium.launch({
-    headless: true, // เปลี่ยนเป็น false ถ้าอยากเห็น browser
+    headless: false, // เปลี่ยนเป็น false ถ้าอยากเห็น browser
   });
 
   const context = await browser.newContext();
@@ -148,7 +149,12 @@ async function loginWebsite() {
   }
 }
 
-async function searchOpenStampConfirm(page, cardSerial, fullName) {
+async function searchOpenStampConfirm(
+  page,
+  cardSerial,
+  fullName,
+  expectedVehicleReg,
+) {
   await page.waitForSelector("#card-search", { timeout: 30000 });
 
   await page.evaluate(() => {
@@ -174,6 +180,8 @@ async function searchOpenStampConfirm(page, cardSerial, fullName) {
   let confirmClicked = false;
   let popupConfirmClicked = false;
   let targetStampValue = "";
+  let websiteLicense = "";
+  let vehicleMatched = false;
 
   if (await openButton.isVisible().catch(() => false)) {
     await openButton.click({ force: true });
@@ -181,7 +189,43 @@ async function searchOpenStampConfirm(page, cardSerial, fullName) {
     await page.waitForTimeout(2000);
   }
 
+  // ===== NEW STEP: CHECK LICENSE FROM WEBSITE =====
   if (openClicked) {
+    await page
+      .waitForSelector("#licenseSelect", { timeout: 10000 })
+      .catch(() => null);
+/*
+    websiteLicense = await page
+      .locator("#licenseSelect")
+      .textContent()
+      .catch(() => "");
+*/
+    websiteLicense = 'aaa';
+    websiteLicense = clean(websiteLicense);
+
+    vehicleMatched = isVehicleRegMatch(websiteLicense, expectedVehicleReg);
+
+    if (!vehicleMatched) {
+      return {
+        success: false,
+        step: "Verified Vehical No. in Website",
+        failReason: "Vehical No. not match in master",
+        openClicked,
+        stampSelected,
+        remarkFilled,
+        confirmClicked,
+        popupConfirmClicked,
+        selectedStampValue: null,
+        remarkValue: null,
+        websiteLicense,
+        expectedVehicleReg,
+        vehicleMatched,
+        currentUrl: page.url(),
+      };
+    }
+  }
+
+  if (openClicked && vehicleMatched) {
     await page.waitForSelector("#slStampCode", { timeout: 10000 });
 
     const firstChar = clean(cardSerial).charAt(0).toUpperCase();
@@ -234,11 +278,15 @@ async function searchOpenStampConfirm(page, cardSerial, fullName) {
   return {
     success:
       openClicked &&
+      vehicleMatched &&
       stampSelected &&
       remarkFilled &&
       confirmClicked &&
       popupConfirmClicked,
     openClicked,
+    vehicleMatched,
+    websiteLicense,
+    expectedVehicleReg,
     stampSelected,
     remarkFilled,
     confirmClicked,
@@ -249,9 +297,11 @@ async function searchOpenStampConfirm(page, cardSerial, fullName) {
   };
 }
 
+
 function getFailReason(result) {
   if (!result.openClicked)
     return "OPEN button not visible or not clicked (Not Found Parking Card ID)";
+  if (result.vehicleMatched === false) return "Vehical No. not match in master";
   if (!result.stampSelected) return "Stamp code 260 not selected";
   if (!result.remarkFilled) return "Remark not filled";
   if (!result.confirmClicked) return "Confirm button not clicked";
@@ -352,6 +402,7 @@ async function main() {
           session.page,
           cardSerial,
           fullName,
+          vehicleReg,
         );
 
         if (result.success) {

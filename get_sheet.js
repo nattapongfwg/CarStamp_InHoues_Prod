@@ -214,6 +214,10 @@ function checkOwnerMatch(masterRows, fullName, vehicleReg) {
   };
 }
 
+function isVehicleRegMatch(value1, value2) {
+  return cleanNoSpace(value1) === cleanNoSpace(value2);
+}
+
 module.exports = {
   clean,
   cleanNoSpace,
@@ -222,5 +226,6 @@ module.exports = {
   updateRowResult,
   getMasterData,
   checkOwnerMatch,
+  isVehicleRegMatch,
   MAIN_COL,
 };
