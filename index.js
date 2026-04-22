@@ -78,7 +78,7 @@ function logData(obj) {
 
 async function createBrowserSession() {
   const browser = await chromium.launch({
-    headless: false,
+    headless: true, // true not show website
   });
 
   const context = await browser.newContext();
